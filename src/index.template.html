@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>买房 vs 租房 · 专业测算器</title>
+<style>
+/*__STYLE__*/
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <h1>买房 vs 租房 · 专业测算器</h1>
+    <p>基于同额现金流对照法：两条路径投入完全相同的现金，逐月推演月供摊还、持有成本、租金增长与首付的投资机会成本，比较持有期末的净资产。填写下方参数，测算结果与全部图表即时更新。</p>
+  </header>
+
+  <section aria-label="参数输入">
+    <div class="form-grid">
+
+      <fieldset class="card">
+        <legend>🏠 房产参数</legend>
+        <div class="field"><label for="price">房屋总价</label>
+          <div class="row"><input id="price" type="number" min="0" step="10"><span class="unit">万元</span></div></div>
+        <div class="field"><label for="downPct">首付比例</label>
+          <div class="row"><input id="downPct" type="number" min="0" max="100" step="5"><span class="unit">%</span></div></div>
+        <div class="field"><label for="deedTaxPct">契税税率（首套90㎡以下1%，以上1.5%，二套/非普宅3%）</label>
+          <div class="row"><select id="deedTaxPct"><option value="1">1%</option><option value="1.5">1.5%</option><option value="3">3%</option></select></div></div>
+        <div class="field"><label for="buyAgentPct">买入中介费率</label>
+          <div class="row"><input id="buyAgentPct" type="number" min="0" step="0.1"><span class="unit">%</span></div></div>
+        <div class="field"><label for="otherOneOff">其他一次性费用（维修基金、评估等）</label>
+          <div class="row"><input id="otherOneOff" type="number" min="0" step="0.1"><span class="unit">万元</span></div></div>
+        <div class="field"><label for="propertyFeeMonthly">物业费</label>
+          <div class="row"><input id="propertyFeeMonthly" type="number" min="0" step="10"><span class="unit">元/月</span></div></div>
+        <div class="field"><label for="maintPctYearly">年维修维护费率（占当期房价）</label>
+          <div class="row"><input id="maintPctYearly" type="number" min="0" step="0.1"><span class="unit">%/年</span></div></div>
+        <div class="field"><label for="homeGrowthPct">房价年均涨幅（可为负）</label>
+          <div class="row"><input id="homeGrowthPct" type="number" step="0.5"><span class="unit">%/年</span></div></div>
+        <div class="field"><label for="sellCostPct">卖出交易成本（中介+税费，占卖价）</label>
+          <div class="row"><input id="sellCostPct" type="number" min="0" step="0.5"><span class="unit">%</span></div></div>
+        <div class="field"><label for="holdYears">测算持有期</label>
+          <div class="row"><input id="holdYears" type="number" min="1" max="50" step="1"><span class="unit">年</span></div></div>
+      </fieldset>
+
+      <fieldset class="card">
+        <legend>🏦 贷款参数</legend>
+        <div class="field"><label for="loanMode">贷款方式</label>
+          <div class="row"><select id="loanMode">
+            <option value="combo">组合贷（公积金优先）</option>
+            <option value="comm">纯商业贷款</option>
+            <option value="pf">纯公积金贷款</option>
+          </select></div></div>
+        <div class="field"><label for="commRatePct">商贷年利率</label>
+          <div class="row"><input id="commRatePct" type="number" min="0" step="0.05"><span class="unit">%</span></div></div>
+        <div class="field"><label for="pfRatePct">公积金年利率</label>
+          <div class="row"><input id="pfRatePct" type="number" min="0" step="0.05"><span class="unit">%</span></div></div>
+        <div class="field"><label for="pfCap">公积金贷款额度上限</label>
+          <div class="row"><input id="pfCap" type="number" min="0" step="10"><span class="unit">万元</span></div></div>
+        <div class="field"><label for="loanYears">贷款年限</label>
+          <div class="row"><input id="loanYears" type="number" min="1" max="30" step="1"><span class="unit">年</span></div></div>
+        <div class="field"><label for="repayMethod">还款方式</label>
+          <div class="row"><select id="repayMethod">
+            <option value="annuity">等额本息（月供恒定）</option>
+            <option value="linear">等额本金（月供递减）</option>
+          </select></div></div>
+        <div class="loan-live" id="loanLive"></div>
+      </fieldset>
+
+      <fieldset class="card">
+        <legend>🔑 租房参数</legend>
+        <div class="field"><label for="monthlyRent">同等居住条件月租金</label>
+          <div class="row"><input id="monthlyRent" type="number" min="0" step="100"><span class="unit">元/月</span></div></div>
+        <div class="field"><label for="rentGrowthPct">租金年均涨幅</label>
+          <div class="row"><input id="rentGrowthPct" type="number" step="0.5"><span class="unit">%/年</span></div></div>
+        <div class="field"><label for="depositMonths">押金</label>
+          <div class="row"><input id="depositMonths" type="number" min="0" step="1"><span class="unit">个月租金</span></div></div>
+        <div class="field"><label for="moveEveryYears">平均每隔几年换租一次</label>
+          <div class="row"><input id="moveEveryYears" type="number" min="1" step="1"><span class="unit">年</span></div></div>
+        <div class="field"><label for="moveCost">每次换租成本（搬家+中介等）</label>
+          <div class="row"><input id="moveCost" type="number" min="0" step="500"><span class="unit">元</span></div></div>
+      </fieldset>
+
+      <fieldset class="card">
+        <legend>📈 财务参数</legend>
+        <div class="field"><label for="investReturnPct">闲置资金年化投资收益率（首付的机会成本）</label>
+          <div class="row"><input id="investReturnPct" type="number" step="0.5"><span class="unit">%/年</span></div></div>
+        <div class="field"><label for="inflationPct">年通胀率（物业费按此增长）</label>
+          <div class="row"><input id="inflationPct" type="number" step="0.5"><span class="unit">%/年</span></div></div>
+      </fieldset>
+
+    </div>
+
+    <div class="actions">
+      <button class="primary" id="btnCalc">开始测算</button>
+      <button class="ghost" id="btnReset">恢复默认参数</button>
+      <span class="autonote">修改任意参数后结果自动重算</span>
+    </div>
+    <div class="notice" id="notice" role="alert"></div>
+  </section>
+
+  <section id="results" aria-label="测算结果">
+    <div class="banner" id="banner">
+      <p class="verdict" id="verdict"></p>
+      <p class="explain" id="verdictExplain"></p>
+    </div>
+
+    <div class="tiles">
+      <div class="tile"><div class="label">盈亏平衡点</div><div class="value" id="tileBreakEven"></div><div class="sub" id="tileBreakEvenSub"></div></div>
+      <div class="tile"><div class="label">期末净资产差额（买 − 租）</div><div class="value" id="tileDiff"></div><div class="sub" id="tileDiffSub"></div></div>
+      <div class="tile"><div class="label">贷款总利息（全周期）</div><div class="value" id="tileInterest"></div><div class="sub" id="tileInterestSub"></div></div>
+      <div class="tile"><div class="label">静态租售比</div><div class="value" id="tileRatio"></div><div class="sub" id="tileRatioSub"></div></div>
+    </div>
+
+    <div class="charts">
+      <div class="chart-card span2">
+        <h3><span class="num">①</span>净资产对决：买房 vs 租房</h3>
+        <p class="takeaway" id="tk1"></p>
+        <div class="chart tall" id="chartNetWorth"></div>
+      </div>
+      <div class="chart-card">
+        <h3><span class="num">②</span>累计现金支出对比</h3>
+        <p class="takeaway" id="tk2"></p>
+        <div class="chart" id="chartCumOut"></div>
+      </div>
+      <div class="chart-card">
+        <h3><span class="num">③</span>逐年现金支出对比</h3>
+        <p class="takeaway" id="tk3"></p>
+        <div class="chart" id="chartAnnualOut"></div>
+      </div>
+      <div class="chart-card">
+        <h3><span class="num">④</span>月供构成：本金 vs 利息</h3>
+        <p class="takeaway" id="tk4"></p>
+        <div class="chart" id="chartPayment"></div>
+      </div>
+      <div class="chart-card">
+        <h3><span class="num">⑤</span>贷款剩余本金走势</h3>
+        <p class="takeaway" id="tk5"></p>
+        <div class="chart" id="chartBalance"></div>
+      </div>
+      <div class="chart-card">
+        <h3><span class="num">⑥</span>买房总成本构成（持有期内）</h3>
+        <p class="takeaway" id="tk6"></p>
+        <div class="chart" id="chartCost"></div>
+      </div>
+      <div class="chart-card">
+        <h3><span class="num">⑦</span>持有年限敏感性：持有多久买房才划算</h3>
+        <p class="takeaway" id="tk7"></p>
+        <div class="chart" id="chartSweep"></div>
+      </div>
+      <div class="chart-card span2">
+        <h3><span class="num">⑧</span>双因子敏感性：房价涨幅 × 投资收益率</h3>
+        <p class="takeaway" id="tk8"></p>
+        <div class="chart tall" id="chartHeat"></div>
+      </div>
+    </div>
+
+    <details class="table-wrap">
+      <summary>逐年明细数据表（无障碍表格视图）</summary>
+      <div class="scroll-x"><table class="yearly" id="yearlyTable"></table></div>
+    </details>
+
+    <footer class="method">
+      <h4>模型假设与口径说明</h4>
+      <ul>
+        <li>比较口径为「持有期末净资产」：买房 = 房产市值 − 卖出交易成本 − 剩余贷款本金；租房 = 投资组合终值 + 押金退回。两条路径的现金投入完全相同。</li>
+        <li>租房路径将买房者的期初支出（首付、契税、中介费等，扣除押金）投入设定收益率的组合；每月将「买房月支出 − 租房月支出」的差额继续投入，差额为负时从组合中支取（组合可为负值，视为按同一利率融资的简化处理）。</li>
+        <li>房价、租金按年复利增长；物业费随通胀增长；维修费按当期房价的固定比例计提；组合贷中公积金部分受额度上限约束，超出部分自动划入商贷。</li>
+        <li>未纳入：个税抵扣、房产税试点、提前还贷、装修支出、学区/落户等非货币收益。结论对「房价涨幅」与「投资收益率」两个假设最为敏感，请重点参考图⑧。</li>
+        <li>本工具仅供参考，不构成投资建议。</li>
+      </ul>
+    </footer>
+  </section>
+
+</div>
+
+<script>
+/*__ECHARTS__*/
+</script>
+<script>
+/*__CALC__*/
+</script>
+<script>
+/*__APP__*/
+</script>
+</body>
+</html>
