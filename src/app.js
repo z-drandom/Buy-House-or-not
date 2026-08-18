@@ -12,6 +12,7 @@
     return (v / 1e4).toFixed(d) + ' 万';
   };
   const fmtWanSigned = (v) => (v >= 0 ? '+' : '−') + fmtWan(Math.abs(v));
+  const fmt2 = (v) => v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtYuan = (v) => Math.round(v).toLocaleString('zh-CN') + ' 元';
   const fmtAxisWan = (v) => {
     if (Math.abs(v) >= 1e8) return (v / 1e8).toLocaleString('zh-CN') + '亿';
@@ -145,6 +146,7 @@
     renderSweepChart(t, r);
     renderHeatChart(t, r);
     renderTable(r);
+    renderAudit(r);
   }
 
   /* ---------- 提示与贷款速览 ---------- */
@@ -489,6 +491,130 @@
       `<thead><tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody>`;
   }
 
+  /* ---------- 计算过程核对面板 ---------- */
+  function renderAudit(r) {
+    const p = r.params, m = r.metrics, L = r.loan;
+    const F = (s) => `<div class="formula">${s}</div>`;
+    const N = (s) => `<div class="note">${s}</div>`;
+    let h = '';
+
+    // 第 1 步 期初支出
+    h += '<h4>第 1 步 · 期初支出（两条路径投入相同现金）</h4>';
+    h += F(`首付 = 总价 × 首付比例 = ${fmt2(p.price)} × ${p.downPct}% = ${fmt2(m.downPayment)} 元`);
+    h += F(`契税 = ${fmt2(p.price)} × ${p.deedTaxPct}% = ${fmt2(m.deedTax)} 元　·　买入中介费 = ${fmt2(p.price)} × ${p.buyAgentPct}% = ${fmt2(m.buyAgentFee)} 元　·　其他一次性费用 = ${fmt2(p.otherOneOff)} 元`);
+    h += F(`买房期初支出合计 = ${fmt2(m.downPayment)} + ${fmt2(m.deedTax)} + ${fmt2(m.buyAgentFee)} + ${fmt2(p.otherOneOff)} = <b>${fmt2(m.upfront)} 元</b>`);
+    h += F(`租房押金 = ${fmt2(p.monthlyRent)} × ${p.depositMonths} 个月 = ${fmt2(m.deposit)} 元　→　租房者期初投入投资组合 = ${fmt2(m.upfront)} − ${fmt2(m.deposit)} = <b>${fmt2(m.initialPortfolio)} 元</b>`);
+
+    // 第 2 步 贷款与月供
+    h += '<h4>第 2 步 · 贷款拆分与月供</h4>';
+    if (L.principal <= 0) {
+      h += N('首付比例为 100%，全款购房，无贷款。');
+    } else {
+      h += F(`贷款本金 = 总价 × (1 − 首付比例) = ${fmt2(p.price)} × ${100 - p.downPct}% = ${fmt2(L.principal)} 元`);
+      if (L.pfPart > 0 && L.commPart > 0) {
+        h += F(`公积金部分 = min(贷款本金, 额度上限) = min(${fmt2(L.principal)}, ${fmt2(p.pfCap)}) = ${fmt2(L.pfPart)} 元　·　商贷部分 = ${fmt2(L.commPart)} 元`);
+      }
+      const n = Math.round(p.loanYears * 12);
+      const parts = [];
+      if (L.pfPart > 0) parts.push({ name: '公积金', P: L.pfPart, rate: p.pfRatePct });
+      if (L.commPart > 0) parts.push({ name: '商贷', P: L.commPart, rate: p.commRatePct });
+      for (const part of parts) {
+        const i = part.rate / 100 / 12;
+        if (p.repayMethod === 'annuity') {
+          const pay = calc.annuityPayment(part.P, part.rate, p.loanYears);
+          h += F(`${part.name}等额本息月供 = P·i·(1+i)<sup>n</sup> / [(1+i)<sup>n</sup>−1]，其中 P=${fmt2(part.P)}，月利率 i=${part.rate}%/12=${(i * 100).toFixed(6)}%，n=${n} → <b>${fmt2(pay)} 元/月</b>`);
+          h += N(`Excel 核对：<code>=PMT(${part.rate}%/12, ${n}, -${part.P})</code> 应得 ${fmt2(pay)}`);
+        } else {
+          const firstPay = part.P / n + part.P * i;
+          h += F(`${part.name}等额本金首月月供 = P/n + P·i = ${fmt2(part.P)}/${n} + ${fmt2(part.P)} × ${(i * 100).toFixed(6)}% = <b>${fmt2(firstPay)} 元</b>，此后每月递减 ${fmt2(part.P / n * i)} 元`);
+        }
+      }
+      h += F(`首月月供合计 = <b>${fmt2(L.firstPayment)} 元</b>（其中利息 ${fmt2(L.schedule.interests[0])} 元 + 归还本金 ${fmt2(L.schedule.principals[0])} 元）`);
+    }
+
+    // 第 3 步 机会成本月化
+    h += '<h4>第 3 步 · 投资收益率的月化</h4>';
+    h += F(`月化收益率 r<sub>月</sub> = (1 + ${p.investReturnPct}%)<sup>1/12</sup> − 1 = ${(m.monthlyInvestRate * 100).toFixed(6)}%`);
+    h += N('口径说明：投资收益率按「实际年化」几何月化；房贷月利率按银行惯例为「名义年利率 ÷ 12」，两者口径不同，请勿混用。');
+
+    // 第 4 步 逐月推演抽样
+    h += '<h4>第 4 步 · 逐月推演（抽样月份，完整数据请导出 CSV）</h4>';
+    const sampleMonths = [...new Set([1, 2, 3, 12, 13, r.months])].filter((x) => x >= 1 && x <= r.months).sort((a, b) => a - b);
+    h += '<div class="scroll-x"><table><thead><tr>' +
+      ['月份', '月供', '物业费', '维修费', '买房月支出', '租金', '换租成本', '差额(买−租)', '组合期初', '组合收益', '差额注入后组合'].map((c) => `<th>${c}</th>`).join('') +
+      '</tr></thead><tbody>';
+    for (const mm of sampleMonths) {
+      const i = mm - 1;
+      const prev = i === 0 ? m.initialPortfolio : r.monthly.portfolio[i - 1];
+      const gain = prev * m.monthlyInvestRate;
+      const mortgage = i < L.schedule.payments.length ? L.schedule.payments[i] : 0;
+      const diff = r.monthly.buyOut[i] - r.monthly.rentOut[i];
+      h += `<tr><td>第 ${mm} 月</td><td>${fmt2(mortgage)}</td><td>${fmt2(r.monthly.propertyFee[i])}</td><td>${fmt2(r.monthly.maintenance[i])}</td>` +
+        `<td>${fmt2(r.monthly.buyOut[i])}</td><td>${fmt2(r.monthly.rent[i])}</td><td>${fmt2(r.monthly.moveCost[i])}</td>` +
+        `<td>${fmt2(diff)}</td><td>${fmt2(prev)}</td><td>${fmt2(gain)}</td><td>${fmt2(r.monthly.portfolio[i])}</td></tr>`;
+    }
+    h += '</tbody></table></div>';
+    {
+      const diff1 = r.monthly.buyOut[0] - r.monthly.rentOut[0];
+      h += F(`递推式：组合<sub>t</sub> = 组合<sub>t−1</sub> × (1 + r<sub>月</sub>) + (买房月支出 − 租房月支出)。第 1 月：${fmt2(m.initialPortfolio)} × (1 + ${(m.monthlyInvestRate * 100).toFixed(6)}%) + ${fmt2(diff1)} = ${fmt2(r.monthly.portfolio[0])} 元`);
+      h += N('维修费 = 当期房价 × 年维修费率 ÷ 12（房价按年复利跳增）；物业费随通胀按年增长；租金按年涨幅逐年跳增；差额为负表示租房月支出更高，此时从组合中支取。');
+    }
+
+    // 第 5 步 期末结算
+    h += `<h4>第 5 步 · 期末结算（第 ${p.holdYears} 年末卖出）</h4>`;
+    const balEnd = r.monthly.balance[r.months - 1] || 0;
+    h += F(`房产市值 = ${fmt2(p.price)} × (1 + ${p.homeGrowthPct}%)<sup>${p.holdYears}</sup> = ${fmt2(m.homeValueEnd)} 元`);
+    h += F(`买房净资产 = 市值 − 卖出成本 − 剩余本金 = ${fmt2(m.homeValueEnd)} − ${fmt2(m.sellCost)} − ${fmt2(balEnd)} = <b>${fmt2(m.buyNetWorthEnd)} 元</b>`);
+    h += F(`租房净资产 = 投资组合终值 + 押金退回 = ${fmt2(r.monthly.portfolio[r.months - 1])} + ${fmt2(m.deposit)} = <b>${fmt2(m.rentNetWorthEnd)} 元</b>`);
+    h += F(`净资产差额（买 − 租） = ${fmt2(m.buyNetWorthEnd)} − ${fmt2(m.rentNetWorthEnd)} = <b>${fmt2(m.finalDiff)} 元</b>（与顶部结论一致）`);
+
+    // 第 6 步 交叉核对方法
+    h += '<h4>第 6 步 · 三种交叉核对方法</h4>';
+    h += '<ul>' +
+      '<li><b>Excel 对账</b>：点击下方「导出逐月明细 CSV」，每一行的每一列都可用上述公式重算；月供可用 <code>PMT</code> 函数核对。</li>' +
+      '<li><b>手工抽查</b>：任选一个月，按第 4 步的递推式手算组合值，与 CSV 对应行比对。</li>' +
+      '<li><b>自动测试</b>：仓库内 <code>node tests/calc.test.js</code> 含 37 项对照测试——银行公式对照、摊还表自洽、时间价值中性检验（投资月利率=贷款月利率时还款方式与年限不影响结果，误差 &lt; 1 元）等。</li>' +
+      '</ul>';
+
+    document.getElementById('auditBody').innerHTML = h;
+  }
+
+  /* ---------- 逐月明细 CSV 导出 ---------- */
+  function exportCsv() {
+    const r = state.result;
+    if (!r) return;
+    const m = r.metrics, L = r.loan;
+    const head = ['月序', '年', '月供合计', '归还本金', '利息', '月末剩余本金', '物业费', '维修费',
+      '买房月支出合计', '租金', '换租成本', '月支出差额(买-租)', '组合期初', '组合收益', '组合期末',
+      '房产市值', '买房净资产', '租房净资产', '净资产差额(买-租)'];
+    const rows = [head.join(',')];
+    const c2 = (v) => (Math.round(v * 100) / 100).toFixed(2);
+    for (let i = 0; i < r.months; i++) {
+      const prev = i === 0 ? m.initialPortfolio : r.monthly.portfolio[i - 1];
+      const gain = prev * m.monthlyInvestRate;
+      const mortgage = i < L.schedule.payments.length ? L.schedule.payments[i] : 0;
+      const prin = i < L.schedule.principals.length ? L.schedule.principals[i] : 0;
+      const intr = i < L.schedule.interests.length ? L.schedule.interests[i] : 0;
+      rows.push([
+        i + 1, Math.floor(i / 12) + 1,
+        c2(mortgage), c2(prin), c2(intr), c2(r.monthly.balance[i]),
+        c2(r.monthly.propertyFee[i]), c2(r.monthly.maintenance[i]),
+        c2(r.monthly.buyOut[i]), c2(r.monthly.rent[i]), c2(r.monthly.moveCost[i]),
+        c2(r.monthly.buyOut[i] - r.monthly.rentOut[i]),
+        c2(prev), c2(gain), c2(r.monthly.portfolio[i]),
+        c2(r.monthly.homeValue[i]), c2(r.monthly.buyNetWorth[i]), c2(r.monthly.rentNetWorth[i]),
+        c2(r.monthly.buyNetWorth[i] - r.monthly.rentNetWorth[i]),
+      ].join(','));
+    }
+    // \uFEFF BOM 使 Excel 正确识别 UTF-8 中文
+    const blob = new Blob(['\uFEFF' + rows.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '买租测算_逐月明细.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   /* ---------- 事件绑定 ---------- */
   let debounceTimer = null;
   function scheduleRecalc() {
@@ -500,6 +626,7 @@
     document.getElementById(id).addEventListener('change', scheduleRecalc);
   }
   $('#btnCalc').addEventListener('click', recalc);
+  $('#btnCsv').addEventListener('click', exportCsv);
   $('#btnReset').addEventListener('click', () => { writeParams(calc.defaults()); recalc(); });
 
   window.addEventListener('resize', () => {

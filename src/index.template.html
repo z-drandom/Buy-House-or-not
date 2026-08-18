@@ -155,9 +155,17 @@
       </div>
     </div>
 
+    <details class="table-wrap" id="auditWrap">
+      <summary>计算过程核对：公式逐步代入当前参数，可手工或用 Excel 复算</summary>
+      <div class="audit" id="auditBody"></div>
+    </details>
+
     <details class="table-wrap">
       <summary>逐年明细数据表（无障碍表格视图）</summary>
       <div class="scroll-x"><table class="yearly" id="yearlyTable"></table></div>
+      <div class="btn-row">
+        <button class="ghost" id="btnCsv">导出逐月明细 CSV（可用 Excel 逐行对账）</button>
+      </div>
     </details>
 
     <footer class="method">

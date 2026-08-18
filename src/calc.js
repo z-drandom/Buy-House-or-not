@@ -126,6 +126,8 @@ const calc = (() => {
     let portfolio = upfront - deposit; // 租房者把同等期初现金（扣押金）投入组合
     const monthly = {
       buyOut: new Array(M), rentOut: new Array(M),
+      rent: new Array(M), moveCost: new Array(M),
+      propertyFee: new Array(M), maintenance: new Array(M),
       portfolio: new Array(M), balance: new Array(M),
       buyNetWorth: new Array(M), rentNetWorth: new Array(M),
       homeValue: new Array(M),
@@ -167,6 +169,10 @@ const calc = (() => {
       const balance = idx < loan.schedule.balances.length ? loan.schedule.balances[idx] : 0;
       monthly.buyOut[idx] = buyOut;
       monthly.rentOut[idx] = rentOut;
+      monthly.rent[idx] = rent;
+      monthly.moveCost[idx] = rentOut - rent;
+      monthly.propertyFee[idx] = propertyFee;
+      monthly.maintenance[idx] = maintenance;
       monthly.portfolio[idx] = portfolio;
       monthly.balance[idx] = balance;
       monthly.homeValue[idx] = homeValueNow;
@@ -232,6 +238,8 @@ const calc = (() => {
       params: p, loan, monthly, yearly, months: M,
       metrics: {
         upfront, deposit, downPayment, deedTax, buyAgentFee,
+        initialPortfolio: upfront - deposit,
+        monthlyInvestRate: rm,
         breakEvenMonth,
         breakEvenYears: breakEvenMonth === null ? null : breakEvenMonth / 12,
         buyNetWorthEnd, rentNetWorthEnd, finalDiff,

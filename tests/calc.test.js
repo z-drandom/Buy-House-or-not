@@ -114,5 +114,62 @@ assertClose('等额本息 零利率', calc.annuityPayment(1200000, 0, 10), 10000
   assertTrue('持有期扫描尺寸', sweep.length === 10, `len=${sweep.length}`);
 }
 
+// 10. 贷款参数有效性 —— 时间价值中性检验（最强的财务自洽性证明）：
+//     当投资的月化收益率 == 贷款月利率时，任何摊还方式的月供流现值都等于本金，
+//     所以「还款方式」「贷款年限」都不应影响期末净资产差额。
+//     注意口径差异：房贷月利率 = 名义年利率/12（银行惯例）；
+//     投资月化收益率 = (1+实际年化)^(1/12)-1。中性点需精确换算：
+//     实际年化 = (1+4%/12)^12-1 = 4.0742%
+{
+  const neutralInvest = (Math.pow(1 + 0.04 / 12, 12) - 1) * 100;
+  const neutral = { ...calc.defaults(), loanMode: 'comm', commRatePct: 4, investReturnPct: neutralInvest, holdYears: 30, loanYears: 30 };
+  const dAnn = calc.simulate({ ...neutral, repayMethod: 'annuity' }).metrics.finalDiff;
+  const dLin = calc.simulate({ ...neutral, repayMethod: 'linear' }).metrics.finalDiff;
+  assertClose('中性检验 等额本息=等额本金', dAnn, dLin, 1);
+  const dY15 = calc.simulate({ ...neutral, loanYears: 15 }).metrics.finalDiff;
+  assertClose('中性检验 贷15年=贷30年', dAnn, dY15, 1);
+}
+
+// 11. 贷款参数有效性 —— 方向性检验：
+//     投资收益率 < 贷款利率时，早还本金（等额本金）、短年限对买方更有利；反之反向。
+{
+  const base = { ...calc.defaults(), loanMode: 'comm', commRatePct: 4, holdYears: 30, loanYears: 30 };
+  const cheap = { ...base, investReturnPct: 2 }; // 钱生钱不如省利息
+  const cA = calc.simulate({ ...cheap, repayMethod: 'annuity' }).metrics.finalDiff;
+  const cL = calc.simulate({ ...cheap, repayMethod: 'linear' }).metrics.finalDiff;
+  const c15 = calc.simulate({ ...cheap, loanYears: 15 }).metrics.finalDiff;
+  assertTrue('收益率<利率 等额本金更优', cL > cA, `linear=${cL} annuity=${cA}`);
+  assertTrue('收益率<利率 短年限更优', c15 > cA, `y15=${c15} y30=${cA}`);
+  const rich = { ...base, investReturnPct: 6 }; // 慢还贷、多投资
+  const rA = calc.simulate({ ...rich, repayMethod: 'annuity' }).metrics.finalDiff;
+  const rL = calc.simulate({ ...rich, repayMethod: 'linear' }).metrics.finalDiff;
+  const r15 = calc.simulate({ ...rich, loanYears: 15 }).metrics.finalDiff;
+  assertTrue('收益率>利率 等额本息更优', rA > rL, `annuity=${rA} linear=${rL}`);
+  assertTrue('收益率>利率 长年限更优', rA > r15, `y30=${rA} y15=${r15}`);
+}
+
+// 12. 贷款参数有效性 —— 单调性检验：
+{
+  const base = calc.defaults();
+  // 商贷利率越高，买方越吃亏
+  const d36 = calc.simulate({ ...base, commRatePct: 3.6 }).metrics.finalDiff;
+  const d50 = calc.simulate({ ...base, commRatePct: 5.0 }).metrics.finalDiff;
+  assertTrue('商贷利率↑ 买方↓', d50 < d36, `5.0%=${d50} 3.6%=${d36}`);
+  // 公积金利率低于商贷时：组合贷优于纯商贷；额度越高越有利
+  const dCombo = calc.simulate({ ...base, loanMode: 'combo' }).metrics.finalDiff;
+  const dComm = calc.simulate({ ...base, loanMode: 'comm' }).metrics.finalDiff;
+  assertTrue('组合贷优于纯商贷', dCombo > dComm, `combo=${dCombo} comm=${dComm}`);
+  const dCapHi = calc.simulate({ ...base, pfCap: 2100000 }).metrics.finalDiff;
+  assertTrue('公积金额度↑ 买方↑', dCapHi > dCombo, `cap210=${dCapHi} cap120=${dCombo}`);
+  // 公积金利率若高于商贷，组合贷反而应更差（引擎不应内置"公积金必优"的假设）
+  const dPfExpensive = calc.simulate({ ...base, pfRatePct: 5 }).metrics.finalDiff;
+  assertTrue('公积金利率>商贷时组合贷更差', dPfExpensive < dCombo, `pf5%=${dPfExpensive} pf2.85%=${dCombo}`);
+  // 贷款利率变化不影响租房路径自身（只通过差额传导）：租房期末净资产应同步变动可解释
+  const r36 = calc.simulate({ ...base, commRatePct: 3.6 });
+  const r50 = calc.simulate({ ...base, commRatePct: 5.0 });
+  assertClose('买房路径期末净资产与利率无关（卖价-余额口径）', r36.metrics.buyNetWorthEnd, r50.metrics.buyNetWorthEnd, 1);
+  assertTrue('利率↑仅通过租方组合传导', r50.metrics.rentNetWorthEnd > r36.metrics.rentNetWorthEnd, '月供更高→租方组合注入更多');
+}
+
 console.log(failed === 0 ? '\n全部测试通过 ✔' : `\n${failed} 个测试失败 ✘`);
 process.exit(failed === 0 ? 0 : 1);
