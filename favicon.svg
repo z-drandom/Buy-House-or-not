@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- 蓝色房子（买房）：屋顶带出檐，主体占满画布以保证小尺寸辨识度 -->
+  <path d="M32 3 L62 30 H54 V60 H10 V30 H2 Z" fill="#2a78d6"/>
+  <!-- 三根递增柱状图（测算对比）：加粗至 10 单位、间隔 4 单位，16px 下仍可分辨 -->
+  <rect x="16" y="45" width="10" height="10" rx="2" fill="#ffffff"/>
+  <rect x="27" y="39" width="10" height="16" rx="2" fill="#ffc09a"/>
+  <rect x="38" y="32" width="10" height="23" rx="2" fill="#eb6834"/>
+</svg>
